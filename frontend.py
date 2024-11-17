@@ -1,19 +1,15 @@
-# frontend.py
-
 import streamlit as st
+from audiorecorder import audiorecorder
 import requests
 from io import BytesIO
-import tempfile
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
+
+st.title("German Law Q&A with Voice and Text Input")
 
 # Initialize session state for message history
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
 
-st.title("German Law Q&A (AufenthG) with Voice Input")
-
-
-# Function to display message history with chat bubbles
+# Display message history
 def display_message_history():
     for msg in st.session_state["messages"]:
         if msg["role"] == "user":
@@ -34,68 +30,77 @@ def display_message_history():
                 """,
                 unsafe_allow_html=True,
             )
-    st.markdown("<hr>", unsafe_allow_html=True)  # Separator between messages
-    st.markdown("<a id='end'></a>", unsafe_allow_html=True)
 
-
-# Display the existing message history
 st.header("Conversation History")
 display_message_history()
 
-# Scroll to the latest message
-if st.session_state["messages"]:
-    st.markdown(
-        "<script>document.getElementById('end').scrollIntoView();</script>",
-        unsafe_allow_html=True,
-    )
-
+# Input Mode Selection
 st.header("New Query")
+mode = st.radio("Choose Input Mode", ["Text", "Voice"])
 
-# Mode: Text or Voice
-mode = st.radio("Input Mode", ["Text", "Voice"])
-
+# Text Mode
 if mode == "Text":
-    user_question = st.text_input(
-        "Ask a question about the Residence Act:", key="user_input"
-    )
-    if st.button("Submit"):
+    user_question = st.text_input("Enter your question about the Residence Act:")
+    if st.button("Submit Text Query"):
         if user_question.strip() == "":
             st.warning("Please enter a question.")
         else:
+            try:
+                payload = {"question": user_question, "context": [], "history": st.session_state["messages"]}
+                response = requests.post("http://127.0.0.1:8000/query", json=payload)
 
-            with st.spinner("Assistant is typing..."):
-                try:
-                    # Prepare the payload with history
-                    payload = {"question": user_question, "context": [], "history": st.session_state["messages"]}
+                if response.status_code == 200:
+                    data = response.json()
+                    answer = data.get("answer", "No answer available.")
+                    updated_history = data.get("history", st.session_state["messages"])
+                    st.session_state["messages"].append({"role": "assistant", "content": answer})
+                    st.session_state["messages"] = updated_history
+                else:
+                    st.error("Error querying the assistant.")
+            except Exception as e:
+                st.error(f"Error: {e}")
 
-                    response = requests.post(
-                        "http://127.0.0.1:8000/query", json=payload
-                    )
-                    # Remove or comment out the debugging line in production
-                    st.write("Backend Response:", response.text)  # Debugging line
+# Voice Mode
+elif mode == "Voice":
+    st.write("Record your question below:")
 
-                    if response.status_code == 200:
-                        data = response.json()
+    audio = audiorecorder("Start Recording", "Stop Recording")
+
+    if len(audio) > 0:
+        # Export AudioSegment to raw WAV bytes
+        audio_bytes = BytesIO()
+        audio.export(audio_bytes, format="wav")
+        audio_bytes.seek(0)
+
+        # Play recorded audio
+        st.audio(audio_bytes, format="audio/wav")
+
+        if st.button("Submit Voice Query"):
+            try:
+                # Send audio for transcription
+                # Send audio for transcription
+                files = {"audio": ("temp_audio.wav", audio_bytes, "audio/wav")}
+                response = requests.post("http://127.0.0.1:8000/transcribe_audio", files=files)
+
+                if response.status_code == 200:
+                    transcription = response.json().get("transcription", "")
+                    st.success(f"Transcription: {transcription}")
+
+                    # Query the backend with the transcription
+                    payload = {"question": transcription, "context": [], "history": st.session_state["messages"]}
+                    query_response = requests.post("http://127.0.0.1:8000/query", json=payload)
+
+                    if query_response.status_code == 200:
+                        data = query_response.json()
                         answer = data.get("answer", "No answer available.")
-                        updated_history = data.get(
-                            "history", st.session_state["messages"]
-                        )
-
-                        # Append assistant message to history
-                        st.session_state["messages"].append(
-                            {"role": "assistant", "content": answer}
-                        )
-                        st.success("Answer added to conversation history.")
-
-                        # Update the history in session state
-                        st.session_state["messages"] = updated_history
-
+                        st.session_state["messages"].append({"role": "assistant", "content": answer})
+                        st.session_state["messages"] = data.get("history", st.session_state["messages"])
                     else:
-                        error_message = response.json().get("error", "Unknown error.")
-                        st.error(f"Error: {error_message}")
-                except Exception as e:
-                    st.error(f"Error: {e}")
-
+                        st.error("Error querying the assistant.")
+                else:
+                    st.error("Error in transcription.")
+            except Exception as e:
+                st.error(f"Error during transcription: {e}")
 
 # Option to clear conversation history
 if st.button("Clear Conversation History"):
