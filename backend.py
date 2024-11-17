@@ -10,7 +10,6 @@ from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from openai import OpenAI
 import logging
-import torch
 import warnings
 
 # Suppress the FutureWarning from torch.load
@@ -21,8 +20,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler("app.log"),  # Logs will be saved in app.log
-        logging.StreamHandler()         # Continue showing logs in the console
-    ]
+        logging.StreamHandler(),  # Continue showing logs in the console
+    ],
 )
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -46,19 +45,24 @@ embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
 # Initialize FAISS vector store
 vectorstore = None
 
+
 def initialize_vectorstore():
     global vectorstore
 
     if os.path.exists("faiss_index"):
         # Load FAISS index
-        vectorstore = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization = True)
+        vectorstore = FAISS.load_local(
+            "faiss_index", embeddings, allow_dangerous_deserialization=True
+        )
         logger.info("FAISS vectorstore loaded from local index.")
     else:
         # Load and split  text
         try:
             with open("aufenthg.txt", "r", encoding="utf-8") as file:
                 law_text = file.read()
-            splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000, chunk_overlap=200
+            )
             texts = splitter.split_text(law_text)
 
             # Build FAISS index
@@ -72,13 +76,16 @@ def initialize_vectorstore():
             logger.exception("Failed to initialize FAISS vectorstore.")
             raise
 
+
 initialize_vectorstore()
+
 
 # Pydantic model for queries
 class Query(BaseModel):
     question: str
-    context: list # List of retrieved documents
+    context: list  # List of retrieved documents
     history: list  # List of previous messages
+
 
 @app.post("/query")
 async def query_law_docs(query: Query):
@@ -94,7 +101,9 @@ async def query_law_docs(query: Query):
             logger.info("Vector search required. Performing similarity search.")
             retrieved_docs = vectorstore.similarity_search(query.question, k=2)
             context = " ".join([doc.page_content for doc in retrieved_docs])
-            logger.info(f"Retrieved context from vector search: {context[:100]}...")  # Log first 100 chars
+            logger.info(
+                f"Retrieved context from vector search: {context[:100]}..."
+            )  # Log first 100 chars
         else:
             logger.info("Vector search not required. Proceeding without context.")
             context = ""
@@ -127,6 +136,7 @@ async def query_law_docs(query: Query):
         logger.exception("An error occurred while processing the query.")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/transcribe")
 async def transcribe_audio(file: UploadFile):
     audio_path = f"temp_audio_{file.filename}"
@@ -151,54 +161,66 @@ async def transcribe_audio(file: UploadFile):
         logger.exception("An error occurred during transcription.")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 class SearchRequired(BaseModel):
     required: bool
-def is_vector_search_needed(query:Query) -> bool:
-    """
-    Decide whether to perform vector search based on the current question and history.
-    """
+
+
+# Load LLM model names from environment variables
+SMART_LLM = os.getenv("SMART_LLM", "gpt-4o-mini")  # Default to gpt-4o-mini if not set
+SIMPLE_LLM = os.getenv(
+    "SIMPLE_LLM", "gpt-3.5-turbo"
+)  # Default to gpt-3.5-turbo if not set
+
+
+def is_vector_search_needed(query: Query) -> bool:
     messages = [
-        {"role": "system", "content": "You are an assistant deciding whether to perform vector search to send an response on users message. "
-                                      "Respond with 'True' if vector search for more information is required and 'False' if no additional information is needed."},
+        {
+            "role": "system",
+            "content": "You are an assistant deciding whether to perform vector search to send a response on the user's message. "
+            "Respond with 'True' if vector search for more information is required and 'False' if no additional information is needed.",
+        },
         {"role": "user", "content": f"{query.question}"},
         {"role": "system", "content": "Conversation history:"},
-        {"role": "system", "content": str(query.history)}
-
+        {"role": "system", "content": str(query.history)},
     ]
     completion = client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
-        messages=messages,
-        response_format=SearchRequired
+        model=SMART_LLM, messages=messages, response_format=SearchRequired
     )
     result = completion.choices[0].message.parsed.required
     logger.info(f"Search required: {result}")
     return result
 
+
 def generate_answer(query: str, context: str, history: list) -> str:
-    """
-    Use GPT to generate an answer from the retrieved context.
-    """
     messages = [
-        {"role": "system", "content": "You are a helpful assistant providing answers based on provided context."},
+        {
+            "role": "system",
+            "content": "You are a helpful assistant providing answers based on provided context.",
+        },
         {"role": "system", "content": "The history of the conversation is as follows:"},
-        {"role": "system", "content": str(history)}
+        {"role": "system", "content": str(history)},
     ]
     if context:
-        messages.append({"role": "user", "content": f"Context: {context}\n\nQuestion: {query}\nAnswer:"})
+        messages.append(
+            {
+                "role": "user",
+                "content": f"Context: {context}\n\nQuestion: {query}\nAnswer:",
+            }
+        )
     else:
         messages.append({"role": "user", "content": f"Question: {query}\nAnswer:"})
 
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages
-    )
+    completion = client.chat.completions.create(model=SMART_LLM, messages=messages)
     logger.info("Generated answer using OpenAI.")
     return completion.choices[0].message.content.strip()
+
 
 from pydantic import BaseModel
 from openai import OpenAI
 
 client = OpenAI()
+
 
 class Hallucination(BaseModel):
     reasoning: str
@@ -211,26 +233,25 @@ def hallucination_check(query: str, answer: str, context: str) -> bool:
     """
     validation_prompt = (
         f"Validate if the following answer is accurate based on the provided context. "
-        f"Respond with 'True' if the answer is not factual and 'False' if it is a good answer. Answer True only if the answer is really completely unrelated to the question \n\n"
+        f"Respond with 'True' if the answer is not factual and 'False' if it is a good answer. Answer True only if the answer is really completely unrelated to the question.\n\n"
         f"Context: {context}\n\nQuestion: {query}\nAnswer: {answer}"
     )
     messages = [
-        {"role": "system", "content": "You are a validator ensuring factual alignment of answers."},
+        {
+            "role": "system",
+            "content": "You are a validator ensuring factual alignment of answers.",
+        },
         {"role": "user", "content": validation_prompt},
     ]
     completion = client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
-        messages=messages,
-        response_format=Hallucination
+        model=SMART_LLM, messages=messages, response_format=Hallucination
     )
     result = completion.choices[0].message.parsed.isHallucination
     logger.info(f"Hallucination check result: {result}")
     return result
 
+
 def refine_query(query: str, answer: str) -> str:
-    """
-    Refine the query based on the hallucinated answer.
-    """
     refinement_prompt = (
         "The given answer appears to be inaccurate. Suggest a refined version of the query "
         "to get a more reliable answer.\n\n"
@@ -240,22 +261,16 @@ def refine_query(query: str, answer: str) -> str:
         {"role": "system", "content": "You are an assistant refining user queries."},
         {"role": "user", "content": refinement_prompt},
     ]
-    completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=messages
-    )
+    completion = client.chat.completions.create(model=SIMPLE_LLM, messages=messages)
     refined_query = completion.choices[0].message.content.strip()
     logger.info(f"Refined query: {refined_query}")
     return refined_query
 
+
 def summarize_history(history: list) -> list:
-    """
-    Summarize the conversation history to keep it concise.
-    """
-    # Convert history to a readable format
     conversation = ""
     for msg in history:
-        role = "User" if msg['role'] == 'user' else "Assistant"
+        role = "User" if msg["role"] == "user" else "Assistant"
         conversation += f"{role}: {msg['content']}\n"
 
     summary_prompt = (
@@ -264,33 +279,33 @@ def summarize_history(history: list) -> list:
     )
 
     completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=SIMPLE_LLM,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that summarizes conversations."},
+            {
+                "role": "system",
+                "content": "You are a helpful assistant that summarizes conversations.",
+            },
             {"role": "user", "content": summary_prompt},
-        ]
+        ],
     )
 
     summary = completion.choices[0].message.content.strip()
     logger.info("Conversation history summarized.")
     return [{"role": "system", "content": summary}]
 
+
 def generate_corrected_transcript(transcription: str) -> str:
-    """
-    Use GPT to correct transcription errors.
-    """
     from prompts import correct_prompt
+
     messages = [
         {"role": "system", "content": correct_prompt},
         {"role": "user", "content": transcription},
     ]
-    completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=messages
-    )
+    completion = client.chat.completions.create(model=SIMPLE_LLM, messages=messages)
     corrected_transcription = completion.choices[0].message.content.strip()
     logger.info("Generated corrected transcription.")
     return corrected_transcription
+
 
 # CORS configuration
 from fastapi.middleware.cors import CORSMiddleware
