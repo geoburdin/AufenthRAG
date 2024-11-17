@@ -62,16 +62,11 @@ if mode == "Text":
         if user_question.strip() == "":
             st.warning("Please enter a question.")
         else:
-            # Append user message to history
-            st.session_state["messages"].append(
-                {"role": "user", "content": user_question}
-            )
-            # st.experimental_rerun()  # Rerun to display the user message immediately
 
             with st.spinner("Assistant is typing..."):
                 try:
                     # Prepare the payload with history
-                    payload = {"question": user_question, "context": [], "history": []}
+                    payload = {"question": user_question, "context": [], "history": st.session_state["messages"]}
 
                     response = requests.post(
                         "http://127.0.0.1:8000/query", json=payload
@@ -94,7 +89,6 @@ if mode == "Text":
 
                         # Update the history in session state
                         st.session_state["messages"] = updated_history
-                        # st.experimental_rerun()  # Rerun to display the assistant's answer
 
                     else:
                         error_message = response.json().get("error", "Unknown error.")

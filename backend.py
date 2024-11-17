@@ -46,6 +46,17 @@ embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
 vectorstore = None
 
 
+def split_into_paragraphs(text: str) -> list:
+    """
+    Splits the given text into paragraphs based on double line breaks.
+    """
+    paragraphs = [
+        paragraph.strip() for paragraph in text.split("\n\n") if paragraph.strip()
+    ]
+    return paragraphs
+
+
+# Example Usage
 def initialize_vectorstore():
     global vectorstore
 
@@ -56,17 +67,16 @@ def initialize_vectorstore():
         )
         logger.info("FAISS vectorstore loaded from local index.")
     else:
-        # Load and split  text
+        # Load and split text
         try:
             with open("aufenthg.txt", "r", encoding="utf-8") as file:
                 law_text = file.read()
-            splitter = RecursiveCharacterTextSplitter(
-                chunk_size=1000, chunk_overlap=200
-            )
-            texts = splitter.split_text(law_text)
 
-            # Build FAISS index
-            vectorstore = FAISS.from_texts(texts, embeddings)
+            # Split text into paragraphs
+            paragraphs = split_into_paragraphs(law_text)
+
+            # Build FAISS index from paragraphs
+            vectorstore = FAISS.from_texts(paragraphs, embeddings)
             vectorstore.save_local("faiss_index")
             logger.info("FAISS vectorstore created and saved locally.")
         except FileNotFoundError:
@@ -99,8 +109,8 @@ async def query_law_docs(query: Query):
         # Step 1: Determine if vector search is needed
         if is_vector_search_needed(query):
             logger.info("Vector search required. Performing similarity search.")
-            retrieved_docs = vectorstore.similarity_search(query.question, k=2)
-            context = " ".join([doc.page_content for doc in retrieved_docs])
+            retrieved_docs = vectorstore.similarity_search(query.question, k=5)
+            context = "\n\n ".join([doc.page_content for doc in retrieved_docs])
             logger.info(
                 f"Retrieved context from vector search: {context[:100]}..."
             )  # Log first 100 chars
@@ -177,8 +187,8 @@ def is_vector_search_needed(query: Query) -> bool:
     messages = [
         {
             "role": "system",
-            "content": "You are an assistant deciding whether to perform vector search to send a response on the user's message. "
-            "Respond with 'True' if vector search for more information is required and 'False' if no additional information is needed.",
+            "content": "You are an assistant deciding whether to perform vector search to send a response on the user's message. Vector search is over german law documents Gesetz über den Aufenthalt, die Erwerbstätigkeit und die Integration von Ausländern im Bundesgebiet1) (Aufenthaltsgesetz - AufenthG)"
+            "Respond with 'True' if vector search for more information about the german law is required and 'False' if no additional information is needed.",
         },
         {"role": "user", "content": f"{query.question}"},
         {"role": "system", "content": "Conversation history:"},
