@@ -10,6 +10,19 @@ This project is a Q&A application that allows users to ask questions about [Germ
    pip install -r requirements.txt
    ```
 3. **Set Environment Variables**
+   - Create a `.env` file in the root directory.
+   - Add the following environment variables:
+     ```bash
+     OPENAI_API_KEY=your_openai_api_key
+     SMART_LLM=gpt-4o-mini
+     SIMPLE_LLM=gpt-3.5-turbo
+    
+     LANGCHAIN_TRACING_V2=true
+     LANGCHAIN_ENDPOINT="https://api.smith.langchain.com"
+     LANGCHAIN_API_KEY=""
+     LANGCHAIN_PROJECT=""
+      ```
+
 4. **Run the backend**
    ```bash
    uvicorn backend:app --reload
@@ -20,6 +33,8 @@ This project is a Q&A application that allows users to ask questions about [Germ
     ```
 ## Example of usage
 [frontend.pdf](frontend.pdf)
+
+
 [langsmith trace ](https://smith.langchain.com/public/a9797397-28fe-40cd-b2a0-f1cb75de9b6a/r)
 
 
@@ -51,6 +66,9 @@ Processes text and voice requests.
 
 **FAISS Vector Store**  
 Stores and searches through vector representations of the document.
+
+**Tracing**
+Logs the conversation history and queries for debugging and monitoring using Langsmith.
 
 
 3. **Internal Functions and Components**
