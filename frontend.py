@@ -51,6 +51,7 @@ if mode == "Text":
 
                 if response.status_code == 200:
                     data = response.json()
+                    st.write(f"Answer: {data.get('answer', 'No answer available.')}")
                     answer = data.get("answer", "No answer available.")
                     updated_history = data.get("history", st.session_state["messages"])
                     st.session_state["messages"].append({"role": "assistant", "content": answer})

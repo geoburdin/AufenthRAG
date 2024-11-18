@@ -2,6 +2,28 @@
 
 This project is a Q&A application that allows users to ask questions about [German migration law](https://www.gesetze-im-internet.de/aufenthg_2004/BJNR195010004.html) using either text or voice input. The application leverages Streamlit for the frontend, FastAPI for the backend, and integrates with OpenAI's API for generating responses and transcribing audio. Additionally, it uses FAISS for vector search.
 
+## To Run
+
+1. **Clone the Repository**
+2. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. **Set Environment Variables**
+4. **Run the backend**
+   ```bash
+   uvicorn backend:app --reload
+   ```
+4. **Run the frontend**
+   ```bash
+    streamlit run frontend.py
+    ```
+## Example of usage
+[frontend.pdf](frontend.pdf)
+[langsmith trace ](https://smith.langchain.com/public/a9797397-28fe-40cd-b2a0-f1cb75de9b6a/r)
+
+
+
 ## Features
 
 - **Text Input**: Users can type their questions and receive answers.
@@ -9,7 +31,7 @@ This project is a Q&A application that allows users to ask questions about [Germ
 - **Conversation History**: The application maintains a history of the conversation.
 - **Hallucination Check**: Ensures the generated answers are accurate and refines queries if necessary.
 - **Contextual Search**: Uses FAISS to perform similarity searches for better context in responses.
-
+- **Tracing**: Logs the conversation history and queries for debugging and monitoring.
 
 
 1. **Frontend (Streamlit)**

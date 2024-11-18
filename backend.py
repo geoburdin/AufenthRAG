@@ -11,6 +11,7 @@ from utils import split_into_paragraphs
 import dotenv
 from openai import OpenAI
 from models import Query
+from langsmith import traceable
 from utils import (
     orchestrator,
     generate_answer,
@@ -76,7 +77,7 @@ def initialize_vectorstore(vectorstore):
 
 vectorstore = initialize_vectorstore(vectorstore)
 
-
+@traceable(name="question_law_docs")
 @app.post("/query")
 async def query_law_docs(query: Query):
     if vectorstore is None:
@@ -89,12 +90,7 @@ async def query_law_docs(query: Query):
         # Step 1: Determine if vector search is needed
         use_vector, model_use = orchestrator(query)
         if use_vector:
-            logger.info("Vector search required. Performing similarity search.")
-            retrieved_docs = vectorstore.similarity_search(query.question, k=5)
-            context = "\n\n ".join([doc.page_content for doc in retrieved_docs])
-            logger.info(
-                f"Retrieved context from vector search: {context[:100]}..."
-            )  # Log first 100 chars
+            context = vector_search(query, vectorstore)
         else:
             logger.info("Vector search not required. Proceeding without context.")
             context = ""
@@ -126,8 +122,17 @@ async def query_law_docs(query: Query):
     except Exception as e:
         logger.exception("An error occurred while processing the query.")
         raise HTTPException(status_code=500, detail=str(e))
+@traceable(name="vector_search")
+def vector_search(query: Query, vectorstore):
+    logger.info("Vector search required. Performing similarity search.")
+    retrieved_docs = vectorstore.similarity_search(query.question, k=5)
+    context = "\n\n ".join([doc.page_content for doc in retrieved_docs])
+    logger.info(
+        f"Retrieved context from vector search: {context[:100]}..."
+    )  # Log first 100 chars
+    return context
 
-
+@traceable(name="transcribe_audio")
 @app.post("/transcribe_audio")
 async def transcribe_audio(audio: UploadFile = File(...)):
     try:
