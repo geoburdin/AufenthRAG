@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from models import Query, SearchRequired, Hallucination
 from langsmith import traceable
+
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -14,6 +15,7 @@ SMART_LLM = os.getenv("SMART_LLM", "gpt-4o-mini")  # Default to gpt-4o-mini if n
 SIMPLE_LLM = os.getenv(
     "SIMPLE_LLM", "gpt-3.5-turbo"
 )  # Default to gpt-3.5-turbo if not set
+
 
 @traceable(name="orchestrator")
 def orchestrator(query: Query) -> tuple[bool, str]:
@@ -37,6 +39,7 @@ def orchestrator(query: Query) -> tuple[bool, str]:
     model_use = completion.choices[0].message.parsed.useModel
     logger.info(f"Search required: {required}, Model to use: {model_use}")
     return required, model_use
+
 
 @traceable(name="generate_answer")
 def generate_answer(query: str, context: str, history: list, model_use: str) -> str:
@@ -62,6 +65,7 @@ def generate_answer(query: str, context: str, history: list, model_use: str) -> 
     logger.info("Generated answer using OpenAI.")
     return completion.choices[0].message.content.strip()
 
+
 @traceable(name="hallucination_check")
 def hallucination_check(query: str, answer: str, context: str) -> bool:
     """
@@ -86,6 +90,7 @@ def hallucination_check(query: str, answer: str, context: str) -> bool:
     logger.info(f"Hallucination check result: {result}")
     return result
 
+
 @traceable(name="refine_query")
 def refine_query(query: str, answer: str) -> str:
     refinement_prompt = (
@@ -101,6 +106,7 @@ def refine_query(query: str, answer: str) -> str:
     refined_query = completion.choices[0].message.content.strip()
     logger.info(f"Refined query: {refined_query}")
     return refined_query
+
 
 @traceable(name="summarize_history")
 def summarize_history(history: list) -> list:
@@ -128,6 +134,7 @@ def summarize_history(history: list) -> list:
     summary = completion.choices[0].message.content.strip()
     logger.info("Conversation history summarized.")
     return [{"role": "system", "content": summary}]
+
 
 @traceable(name="generate_corrected_transcript")
 def generate_corrected_transcript(transcription: str) -> str:

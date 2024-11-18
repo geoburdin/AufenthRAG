@@ -18,7 +18,7 @@ from utils import (
     hallucination_check,
     refine_query,
     summarize_history,
-    generate_corrected_transcript
+    generate_corrected_transcript,
 )
 
 dotenv.load_dotenv()
@@ -77,6 +77,7 @@ def initialize_vectorstore(vectorstore):
 
 vectorstore = initialize_vectorstore(vectorstore)
 
+
 @traceable(name="question_law_docs")
 @app.post("/query")
 async def query_law_docs(query: Query):
@@ -122,6 +123,8 @@ async def query_law_docs(query: Query):
     except Exception as e:
         logger.exception("An error occurred while processing the query.")
         raise HTTPException(status_code=500, detail=str(e))
+
+
 @traceable(name="vector_search")
 def vector_search(query: Query, vectorstore):
     logger.info("Vector search required. Performing similarity search.")
@@ -131,6 +134,7 @@ def vector_search(query: Query, vectorstore):
         f"Retrieved context from vector search: {context[:100]}..."
     )  # Log first 100 chars
     return context
+
 
 @traceable(name="transcribe_audio")
 @app.post("/transcribe_audio")
@@ -143,8 +147,7 @@ async def transcribe_audio(audio: UploadFile = File(...)):
 
         # Transcription with Whisper
         transcription = client.audio.transcriptions.create(
-            file=open(temp_path, "rb"),
-            model="whisper-1"
+            file=open(temp_path, "rb"), model="whisper-1"
         ).text
 
         logger.info(f"Original transcription: {transcription}")
