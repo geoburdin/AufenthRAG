@@ -1,13 +1,35 @@
-### Detailed Interaction Diagram for FastAPI
+# Aufenthaltsgesetz Q&A with Voice and Text Input
 
-Here is a detailed interaction diagram for the FastAPI backend, showing the flow of requests and responses between different functions and components.
+This project is a Q&A application that allows users to ask questions about [German migration law](https://www.gesetze-im-internet.de/aufenthg_2004/BJNR195010004.html) using either text or voice input. The application leverages Streamlit for the frontend, FastAPI for the backend, and integrates with OpenAI's API for generating responses and transcribing audio. Additionally, it uses FAISS for vector search.
+
+## Features
+
+- **Text Input**: Users can type their questions and receive answers.
+- **Voice Input**: Users can record their questions and receive transcriptions and answers.
+- **Conversation History**: The application maintains a history of the conversation.
+- **Hallucination Check**: Ensures the generated answers are accurate and refines queries if necessary.
+- **Contextual Search**: Uses FAISS to perform similarity searches for better context in responses.
+
+
 
 1. **Frontend (Streamlit)**
 - Sends text or voice queries to the FastAPI backend.
 
-2. **FastAPI Endpoints**
+2. **Backend (FastAPI Endpoints)**
 - `/query`: Handles text queries.
 - `/transcribe_audio`: Handles voice queries. Transcribes the audio and sends the transcribed text as a text `/query`.
+  
+Processes text and voice requests.  
+  Interacts with OpenAI for generating responses and transcribing audio.  
+  Uses FAISS for vector store search.
+
+**OpenAI API**  
+  Generates answers to questions.  
+  Performs audio transcription.
+
+**FAISS Vector Store**  
+Stores and searches through vector representations of the document.
+
 
 3. **Internal Functions and Components**
 - `orchestrator`: Determines if vector search is needed and calls the SMART or SIMPLE model.
