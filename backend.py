@@ -78,8 +78,20 @@ def initialize_vectorstore(vectorstore):
 vectorstore = initialize_vectorstore(vectorstore)
 
 
-@traceable(name="question_law_docs")
+
 @app.post("/query")
+async def query_start(query: Query):
+    """
+    FastAPI endpoint that calls the traceable function.
+    """
+    try:
+        response = await query_law_docs(query)
+        return response
+    except Exception as e:
+        logger.exception("An error occurred while processing the query.")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@traceable(name="question_law_docs")
 async def query_law_docs(query: Query):
     if vectorstore is None:
         logger.error("Vectorstore not initialized")
